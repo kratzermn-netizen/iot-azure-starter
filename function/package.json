@@ -1,0 +1,12 @@
+{
+  "name": "iot-azure-function",
+  "version": "1.0.0",
+  "description": "Azure Function: IoT Hub → Cosmos DB",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0"
+  }
+}

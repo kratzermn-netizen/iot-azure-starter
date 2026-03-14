@@ -6,7 +6,7 @@ on:
 
 jobs:
   # ──────────────────────────────────────────────
-  # Job 1: Azure Function (Python Backend)
+  # Job 1: Azure Function (Node.js Backend)
   # ──────────────────────────────────────────────
   deploy-function:
     name: Deploy Azure Function
@@ -15,13 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Python Setup
-        uses: actions/setup-python@v5
+      - name: Node.js Setup
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: "20"
 
       - name: Abhängigkeiten installieren
-        run: pip install -r function/requirements.txt --target=function/.python_packages/lib/site-packages
+        run: npm install
+        working-directory: function
 
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
