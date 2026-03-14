@@ -1,4 +1,4 @@
-const { app, output } = require("@azure/functions");
+const { app, output, input } = require("@azure/functions");
 
 const cosmosOutput = output.cosmosDB({
   databaseName: "iotdb",
@@ -6,6 +6,13 @@ const cosmosOutput = output.cosmosDB({
   connection: "COSMOS_DB_CONNECTION",
   createIfNotExists: true,
   partitionKey: "/deviceId",
+});
+
+const cosmosInput = input.cosmosDB({
+  databaseName: "iotdb",
+  containerName: "measurements",
+  connection: "COSMOS_DB_CONNECTION",
+  sqlQuery: "SELECT TOP 100 * FROM c ORDER BY c.timestamp DESC",
 });
 
 // IoT Hub Trigger → Cosmos DB
@@ -17,8 +24,7 @@ app.eventHub("IoTHubTrigger", {
   extraOutputs: [cosmosOutput],
   handler: async (event, context) => {
     try {
-      const raw = Buffer.isBuffer(event) ? event.toString("utf8") : JSON.stringify(event);
-      const data = typeof event === "object" ? event : JSON.parse(raw);
+      const data = typeof event === "object" ? event : JSON.parse(event.toString());
 
       context.log(`Nachricht empfangen von: ${data.deviceId ?? "unbekannt"}`);
 
@@ -34,27 +40,20 @@ app.eventHub("IoTHubTrigger", {
       context.extraOutputs.set(cosmosOutput, document);
       context.log(`Gespeichert: Temp=${data.temperature}°C`);
     } catch (err) {
-      context.log.error(`Fehler beim Verarbeiten: ${err.message}`);
+      context.log.error(`Fehler: ${err.message}`);
       throw err;
     }
   },
 });
 
-// HTTP GET /api/measurements → letzte 100 Messwerte
+// HTTP GET /api/measurements
 app.http("get_measurements", {
   route: "measurements",
   methods: ["GET"],
   authLevel: "anonymous",
-  extraInputs: [
-    require("@azure/functions").input.cosmosDB({
-      databaseName: "iotdb",
-      containerName: "measurements",
-      connection: "COSMOS_DB_CONNECTION",
-      sqlQuery: "SELECT TOP 100 * FROM c ORDER BY c.timestamp DESC",
-    }),
-  ],
+  extraInputs: [cosmosInput],
   handler: async (req, context) => {
-    const docs = context.extraInputs.get(context.options.extraInputs[0]);
+    const docs = context.extraInputs.get(cosmosInput);
     return {
       status: 200,
       headers: {
