@@ -1,0 +1,5 @@
+# Läuft auf PC und Raspberry Pi
+azure-iot-device==2.14.0
+
+# Nur auf Raspberry Pi nötig (auskommentiert lassen auf dem PC):
+# adafruit-circuitpython-bme280

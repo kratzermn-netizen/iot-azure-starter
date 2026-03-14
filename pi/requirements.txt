@@ -1,0 +1,6 @@
+# Raspberry Pi — beide Services
+adafruit-circuitpython-bme280
+psutil>=5.9.0
+msgpack>=1.0.7
+paho-mqtt>=1.6.1
+requests>=2.31.0

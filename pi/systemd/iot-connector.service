@@ -1,0 +1,35 @@
+[Unit]
+Description=IoT Connectivity App — MQTT/HTTPS TLS Transport zu Azure IoT Hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+
+WorkingDirectory=/opt/iot/connectivity
+ExecStart=/opt/iot/venv/bin/python connector.py
+
+# Umgebungsvariablen (Zertifikatspfade, Hub-Hostname etc.)
+EnvironmentFile=/etc/iot/connector.env
+
+# Neustart bei Absturz
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+# Logging nach journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=iot-connector
+
+# Sicherheits-Hardening
+NoNewPrivileges=yes
+PrivateTmp=no        # Nein — braucht /tmp/iot_collector.sock
+ProtectSystem=strict
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target

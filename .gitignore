@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.python_packages/
+
+# Azure Function - NIEMALS einchecken!
+function/local.settings.json
+
+# Node
+node_modules/
+dist/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
