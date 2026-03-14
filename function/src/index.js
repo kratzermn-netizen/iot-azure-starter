@@ -18,7 +18,7 @@ const cosmosInput = input.cosmosDB({
 // IoT Hub Trigger → Cosmos DB
 app.eventHub("IoTHubTrigger", {
   connection: "IOT_HUB_CONNECTION",
-  eventHubName: "",
+  eventHubName: "iothub-ehub-iot-hub-ma-57404860-566d179e2c",
   consumerGroup: "$Default",
   cardinality: "one",
   extraOutputs: [cosmosOutput],
