@@ -25,6 +25,38 @@ const THRESHOLDS = {
 };
 
 // ---------------------------------------------------------------------------
+// formatTime — inline copy to test the falsy branch (not exported from App.jsx)
+// ---------------------------------------------------------------------------
+
+function formatTime(iso) {
+  return iso ? iso.substring(11, 19) : "";
+}
+
+describe("formatTime", () => {
+  test("extracts HH:MM:SS from a valid ISO timestamp", () => {
+    // Critical: charts rely on this for axis labels
+    expect(formatTime("2024-01-15T12:34:56.000Z")).toBe("12:34:56");
+  });
+
+  test("returns empty string for null (falsy branch)", () => {
+    // Falsy branch — null timestamp must not throw or render garbage
+    expect(formatTime(null)).toBe("");
+  });
+
+  test("returns empty string for undefined (falsy branch)", () => {
+    expect(formatTime(undefined)).toBe("");
+  });
+
+  test("returns empty string for empty string input", () => {
+    expect(formatTime("")).toBe("");
+  });
+
+  test("works with midnight timestamps", () => {
+    expect(formatTime("2024-06-01T00:00:00.000Z")).toBe("00:00:00");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getStatus — pure logic tests (no DOM needed)
 // ---------------------------------------------------------------------------
 
@@ -260,6 +292,44 @@ describe("App — successful data fetch", () => {
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining("measurements")
       );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// App — refresh interval behaviour
+// ---------------------------------------------------------------------------
+
+describe("App — data sorting", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("renders latest measurement's temperature (data sorted oldest-first)", async () => {
+    // The app sorts data ascending by timestamp — last item is "latest"
+    const measurements = [
+      makeMeasurement({ timestamp: "2024-01-15T12:00:00.000Z", temperature: 10.0 }),
+      makeMeasurement({ timestamp: "2024-01-15T13:00:00.000Z", temperature: 99.9 }),
+    ];
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => measurements,
+    });
+    render(<App />);
+    await waitFor(() => {
+      // 99.9 is the latest — should appear as "99.9"
+      expect(screen.getByText(/99\.9/)).toBeInTheDocument();
+    });
+  });
+
+  test("shows Live status (green dot) when fetch succeeds", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => [makeMeasurement()],
+    });
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByText(/Live/)).toBeInTheDocument();
     });
   });
 });

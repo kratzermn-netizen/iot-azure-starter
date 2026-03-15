@@ -167,6 +167,73 @@ describe("buildDocument — missing deviceId falls back to 'unbekannt'", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tests — buildDocument edge cases
+// ---------------------------------------------------------------------------
+
+describe("buildDocument — edge cases", () => {
+  test("handles numeric temperature of 0 (falsy but valid)", () => {
+    // 0°C is a valid reading — must not be lost
+    const event = {
+      deviceId: "sensor-01",
+      timestamp: "2024-01-15T12:00:00.000Z",
+      temperature: 0,
+      humidity: 50.0,
+      pressure: 1013.0,
+    };
+    const { document } = buildDocument(event);
+    expect(document.temperature).toBe(0);
+  });
+
+  test("handles humidity of 0 (boundary minimum)", () => {
+    const event = {
+      deviceId: "sensor-01",
+      timestamp: "2024-01-15T12:00:00.000Z",
+      temperature: 20,
+      humidity: 0,
+      pressure: 1013.0,
+    };
+    const { document } = buildDocument(event);
+    expect(document.humidity).toBe(0);
+  });
+
+  test("handles humidity of 100 (boundary maximum)", () => {
+    const event = {
+      deviceId: "sensor-01",
+      timestamp: "2024-01-15T12:00:00.000Z",
+      temperature: 20,
+      humidity: 100,
+      pressure: 1013.0,
+    };
+    const { document } = buildDocument(event);
+    expect(document.humidity).toBe(100);
+  });
+
+  test("handles negative temperature (below freezing)", () => {
+    const event = {
+      deviceId: "sensor-01",
+      timestamp: "2024-01-15T12:00:00.000Z",
+      temperature: -10.5,
+      humidity: 80,
+      pressure: 1020.0,
+    };
+    const { document } = buildDocument(event);
+    expect(document.temperature).toBe(-10.5);
+  });
+
+  test("JSON string with special characters in deviceId", () => {
+    const event = JSON.stringify({
+      deviceId: "sensor-pi-01",
+      timestamp: "2024-01-15T12:00:00.000Z",
+      temperature: 22,
+      humidity: 55,
+      pressure: 1013,
+    });
+    const { document } = buildDocument(event);
+    expect(document.deviceId).toBe("sensor-pi-01");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tests — get_measurements HTTP handler logic
 // ---------------------------------------------------------------------------
 
