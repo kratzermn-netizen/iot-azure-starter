@@ -1,5 +1,6 @@
 # Läuft auf PC und Raspberry Pi
 azure-iot-device==2.14.0
+urllib3>=2.6.3  # Fix für GHSA-48p4, GHSA-pq67, GHSA-gm62, GHSA-2xpw, GHSA-38jv
 
 # Nur auf Raspberry Pi nötig (auskommentiert lassen auf dem PC):
 # adafruit-circuitpython-bme280
