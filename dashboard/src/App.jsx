@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Component } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -25,15 +25,35 @@ function formatTime(iso) {
 }
 
 function getStatus(value, thresholds) {
-  if (Math.abs(value) >= thresholds.critical) return "critical";
-  if (Math.abs(value) >= thresholds.warn) return "warn";
+  if (value >= thresholds.critical) return "critical";
+  if (value >= thresholds.warn) return "warn";
   return "ok";
+}
+
+class ChartErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ color: "#6b7280", padding: 24, fontFamily: "monospace", fontSize: 13 }}>
+          Diagramm konnte nicht geladen werden.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ──────────────────────────────────────────────
 // Sub-Components
 // ──────────────────────────────────────────────
-function KpiCard({ label, value, unit, thresholds, color }) {
+function KpiCard({ label, value, unit, thresholds }) {
   const status = getStatus(value, thresholds);
   const statusColors = { ok: "#22c55e", warn: "#f59e0b", critical: "#ef4444" };
   const dot = statusColors[status];
@@ -184,21 +204,18 @@ export default function App() {
           value={latest?.temperature ?? null}
           unit="°C"
           thresholds={THRESHOLDS.temperature}
-          color="#3b82f6"
         />
         <KpiCard
           label="Luftfeuchtigkeit"
           value={latest?.humidity ?? null}
           unit="%"
           thresholds={THRESHOLDS.humidity}
-          color="#8b5cf6"
         />
         <KpiCard
           label="Luftdruck"
           value={latest?.pressure ?? null}
           unit="hPa"
           thresholds={THRESHOLDS.pressure}
-          color="#10b981"
         />
       </div>
 
@@ -208,6 +225,7 @@ export default function App() {
           Lade Daten…
         </div>
       ) : (
+        <ChartErrorBoundary>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <SensorChart
             data={data}
@@ -234,6 +252,7 @@ export default function App() {
             threshold={THRESHOLDS.pressure}
           />
         </div>
+        </ChartErrorBoundary>
       )}
 
       <style>{`

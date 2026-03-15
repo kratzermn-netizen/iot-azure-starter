@@ -6,7 +6,7 @@ on:
 
 jobs:
   # ──────────────────────────────────────────────
-  # Job 1: Python Tests (Simulator)
+  # Job 1: Python Tests + Security Scan (Simulator)
   # ──────────────────────────────────────────────
   test-simulator:
     name: Test Simulator (Python)
@@ -18,18 +18,22 @@ jobs:
       - name: Python Setup
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.8"
 
       - name: Abhängigkeiten installieren
-        run: pip install -r requirements-dev.txt
+        run: pip install -r requirements-dev.txt pytest-cov pip-audit
         working-directory: simulator
 
-      - name: Tests ausführen
-        run: pytest test_sensor.py -v
+      - name: Security Scan (pip-audit)
+        run: pip-audit -r requirements.txt
+        working-directory: simulator
+
+      - name: Tests mit Coverage
+        run: pytest test_sensor.py -v --cov=. --cov-fail-under=70
         working-directory: simulator
 
   # ──────────────────────────────────────────────
-  # Job 2: Azure Function Tests + Deploy
+  # Job 2: Azure Function Tests + Security Scan + Deploy
   # ──────────────────────────────────────────────
   deploy-function:
     name: Test & Deploy Azure Function
@@ -48,6 +52,10 @@ jobs:
         run: npm install
         working-directory: function
 
+      - name: Security Scan (npm audit)
+        run: npm audit --audit-level=high
+        working-directory: function
+
       - name: Tests ausführen
         run: npm test
         working-directory: function
@@ -60,7 +68,7 @@ jobs:
           publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
 
   # ──────────────────────────────────────────────
-  # Job 3: Dashboard Tests (in Static Web App workflow)
+  # Job 3: Dashboard Tests + Security Scan
   # ──────────────────────────────────────────────
   test-dashboard:
     name: Test Dashboard (React)
@@ -79,6 +87,10 @@ jobs:
         run: npm install
         working-directory: dashboard
 
-      - name: Tests ausführen
-        run: npm test
+      - name: Security Scan (npm audit)
+        run: npm audit --audit-level=high
+        working-directory: dashboard
+
+      - name: Tests mit Coverage
+        run: npm test -- --coverage --coverage.thresholds.lines=70
         working-directory: dashboard

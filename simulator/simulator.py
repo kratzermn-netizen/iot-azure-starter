@@ -8,8 +8,19 @@ Jetzt mit sauberer Sensor-Abstraktion:
 
 import time
 import json
+import logging
 from datetime import datetime, timezone
 from azure.iot.device import IoTHubDeviceClient, Message
+from azure.iot.device.exceptions import ConnectionFailedError, ConnectionDroppedError
+
+from sensor import SensorBase, SensorReading
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
 # KONFIGURATION
@@ -29,12 +40,21 @@ SEND_INTERVAL_SECONDS = 5
 USE_REAL_SENSOR = False
 
 _PLACEHOLDER_CONNECTION_STRING = "HIER_DEINE_CONNECTION_STRING_EINFÜGEN"
+_MAX_SEND_RETRIES = 3
 
 
 # ──────────────────────────────────────────────
 # Sensor initialisieren
 # ──────────────────────────────────────────────
-def create_sensor():
+def create_sensor() -> SensorBase:
+    """Erstellt und gibt den konfigurierten Sensor zurück.
+
+    Returns:
+        SensorBase: SimulatedSensor (PC) oder BME280Sensor (Raspberry Pi),
+                    abhängig von USE_REAL_SENSOR.
+    Raises:
+        RuntimeError: Wenn der BME280-Sensor nicht initialisiert werden kann.
+    """
     if USE_REAL_SENSOR:
         from sensor_bme280 import BME280Sensor
         return BME280Sensor()
@@ -43,8 +63,14 @@ def create_sensor():
         return SimulatedSensor(simulate_anomalies=True)
 
 
-def _build_payload(reading) -> dict:
-    """Erstellt das JSON-Payload für eine Sensormessung."""
+def _build_payload(reading: SensorReading) -> dict:
+    """Erstellt das JSON-Payload für eine Sensormessung.
+
+    Args:
+        reading: Aktueller Messwert vom Sensor.
+    Returns:
+        dict: Payload mit deviceId, timestamp und Messwerten.
+    """
     return {
         "deviceId": DEVICE_ID,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -55,23 +81,35 @@ def _build_payload(reading) -> dict:
 
 
 def _build_message(payload: dict) -> Message:
-    """Verpackt ein Payload-Dict als IoT Hub Message."""
+    """Verpackt ein Payload-Dict als IoT Hub Message mit JSON Content-Type.
+
+    Args:
+        payload: Messwert-Dict.
+    Returns:
+        Message: Azure IoT Hub Nachricht.
+    """
     message = Message(json.dumps(payload))
     message.content_type = "application/json"
     message.content_encoding = "utf-8"
     return message
 
 
-def _print_startup_info():
+def _print_startup_info() -> None:
+    """Gibt Startinformationen (Modus, Gerät, Intervall) auf der Konsole aus."""
     mode = "🍓 Raspberry Pi + BME280" if USE_REAL_SENSOR else "💻 Simulator"
-    print(f"🚀 IoT Client startet — Modus: {mode}")
-    print(f"   Gerät:     {DEVICE_ID}")
-    print(f"   Intervall: {SEND_INTERVAL_SECONDS}s")
-    print("─" * 50)
+    logger.info(f"🚀 IoT Client startet — Modus: {mode}")
+    logger.info(f"   Gerät:     {DEVICE_ID}")
+    logger.info(f"   Intervall: {SEND_INTERVAL_SECONDS}s")
 
 
-def _print_reading(payload: dict, reading):
-    print(
+def _print_reading(payload: dict, reading: SensorReading) -> None:
+    """Gibt einen einzelnen Messwert formatiert auf der Konsole aus.
+
+    Args:
+        payload: Gesendetes Payload (enthält den timestamp).
+        reading: Messwert-Objekt für die formatierten Werte.
+    """
+    logger.info(
         f"✅ [{payload['timestamp'][11:19]}] "
         f"Temp: {reading.temperature:6.2f}°C | "
         f"Feuchte: {reading.humidity:5.1f}% | "
@@ -79,17 +117,42 @@ def _print_reading(payload: dict, reading):
     )
 
 
-def _send_loop(sensor, client):
-    """Hauptschleife: liest Sensor und sendet Nachrichten bis KeyboardInterrupt."""
+def _send_with_retry(client: IoTHubDeviceClient, message: Message) -> None:
+    """Sendet eine Nachricht mit bis zu _MAX_SEND_RETRIES Versuchen.
+
+    Args:
+        client: Verbundener IoTHubDeviceClient.
+        message: Zu sendende Nachricht.
+    Raises:
+        ConnectionFailedError: Wenn alle Wiederholungsversuche fehlschlagen.
+    """
+    for attempt in range(1, _MAX_SEND_RETRIES + 1):
+        try:
+            client.send_message(message)
+            return
+        except (ConnectionFailedError, ConnectionDroppedError) as exc:
+            logger.warning(f"Sendefehler (Versuch {attempt}/{_MAX_SEND_RETRIES}): {exc}")
+            if attempt == _MAX_SEND_RETRIES:
+                raise
+            time.sleep(2 ** attempt)  # Exponentielles Backoff: 2s, 4s
+
+
+def _send_loop(sensor: SensorBase, client: IoTHubDeviceClient) -> None:
+    """Hauptschleife: liest Sensor und sendet Nachrichten bis KeyboardInterrupt.
+
+    Args:
+        sensor: Initialisierter Sensor (simuliert oder echt).
+        client: Verbundener IoTHubDeviceClient.
+    """
     try:
         while True:
             reading = sensor.read()
             payload = _build_payload(reading)
-            client.send_message(_build_message(payload))
+            _send_with_retry(client, _build_message(payload))
             _print_reading(payload, reading)
             time.sleep(SEND_INTERVAL_SECONDS)
     except KeyboardInterrupt:
-        print("\n\n⏹  Gestoppt.")
+        logger.info("\n⏹  Gestoppt.")
     finally:
         sensor.close()
         client.disconnect()
@@ -98,13 +161,15 @@ def _send_loop(sensor, client):
 # ──────────────────────────────────────────────
 # Hauptprogramm
 # ──────────────────────────────────────────────
-def main():
+def main() -> None:
+    """Einstiegspunkt: prüft Konfiguration, initialisiert Sensor und Client,
+    startet die Sendeschleife."""
     _print_startup_info()
 
     if CONNECTION_STRING == _PLACEHOLDER_CONNECTION_STRING:
-        print("❌ Bitte CONNECTION_STRING eintragen!")
-        print("   Azure Portal → IoT Hub → Geräte → sensor-01")
-        print("   → Primäre Verbindungszeichenfolge kopieren")
+        logger.error("❌ Bitte CONNECTION_STRING eintragen!")
+        logger.error("   Azure Portal → IoT Hub → Geräte → sensor-01")
+        logger.error("   → Primäre Verbindungszeichenfolge kopieren")
         return
 
     sensor = create_sensor()
