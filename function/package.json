@@ -4,9 +4,14 @@
   "description": "Azure Function: IoT Hub → Cosmos DB",
   "main": "src/index.js",
   "scripts": {
-    "start": "func start"
+    "start": "func start",
+    "test": "jest --testPathPattern='src/.*\\.test\\.js$'"
   },
   "dependencies": {
     "@azure/functions": "^4.0.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "jest": "^29.7.0"
   }
 }

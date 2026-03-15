@@ -6,11 +6,35 @@ on:
 
 jobs:
   # ──────────────────────────────────────────────
-  # Job 1: Azure Function (Node.js Backend)
+  # Job 1: Python Tests (Simulator)
+  # ──────────────────────────────────────────────
+  test-simulator:
+    name: Test Simulator (Python)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements-dev.txt
+        working-directory: simulator
+
+      - name: Tests ausführen
+        run: pytest test_sensor.py -v
+        working-directory: simulator
+
+  # ──────────────────────────────────────────────
+  # Job 2: Azure Function Tests + Deploy
   # ──────────────────────────────────────────────
   deploy-function:
-    name: Deploy Azure Function
+    name: Test & Deploy Azure Function
     runs-on: ubuntu-latest
+    needs: test-simulator
 
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +48,10 @@ jobs:
         run: npm install
         working-directory: function
 
+      - name: Tests ausführen
+        run: npm test
+        working-directory: function
+
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
         with:
@@ -31,3 +59,26 @@ jobs:
           package: ./function
           publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
 
+  # ──────────────────────────────────────────────
+  # Job 3: Dashboard Tests (in Static Web App workflow)
+  # ──────────────────────────────────────────────
+  test-dashboard:
+    name: Test Dashboard (React)
+    runs-on: ubuntu-latest
+    needs: test-simulator
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js Setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+        working-directory: dashboard
+
+      - name: Tests ausführen
+        run: npm test
+        working-directory: dashboard

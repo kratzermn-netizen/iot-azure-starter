@@ -19,6 +19,15 @@ jobs:
         with:
           submodules: true
           lfs: false
+      - name: Node.js Setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Dashboard Tests
+        run: npm install && npm test
+        working-directory: dashboard
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
