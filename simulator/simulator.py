@@ -16,7 +16,7 @@ from azure.iot.device import IoTHubDeviceClient, Message
 # ──────────────────────────────────────────────
 
 # Azure IoT Hub → Geräte → sensor-01 → Primäre Verbindungszeichenfolge
-CONNECTION_STRING = "HIER_DEINE_CONNECTION_STRING_EINFÜGEN"
+CONNECTION_STRING = "HIER_DEINE_CONNECTION_STRING_EINFÜGEN"  # ← Azure Portal → IoT Hub → Geräte → sensor-01 → Primäre Verbindungszeichenfolge
 
 DEVICE_ID = "sensor-01"
 SEND_INTERVAL_SECONDS = 5
@@ -27,6 +27,8 @@ SEND_INTERVAL_SECONDS = 5
 # │  True  = Echter BME280 (Raspberry Pi)       │
 # └─────────────────────────────────────────────┘
 USE_REAL_SENSOR = False
+
+_PLACEHOLDER_CONNECTION_STRING = "HIER_DEINE_CONNECTION_STRING_EINFÜGEN"
 
 
 # ──────────────────────────────────────────────
@@ -41,17 +43,65 @@ def create_sensor():
         return SimulatedSensor(simulate_anomalies=True)
 
 
-# ──────────────────────────────────────────────
-# Hauptprogramm
-# ──────────────────────────────────────────────
-def main():
+def _build_payload(reading) -> dict:
+    """Erstellt das JSON-Payload für eine Sensormessung."""
+    return {
+        "deviceId": DEVICE_ID,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "temperature": reading.temperature,
+        "humidity": reading.humidity,
+        "pressure": reading.pressure,
+    }
+
+
+def _build_message(payload: dict) -> Message:
+    """Verpackt ein Payload-Dict als IoT Hub Message."""
+    message = Message(json.dumps(payload))
+    message.content_type = "application/json"
+    message.content_encoding = "utf-8"
+    return message
+
+
+def _print_startup_info():
     mode = "🍓 Raspberry Pi + BME280" if USE_REAL_SENSOR else "💻 Simulator"
     print(f"🚀 IoT Client startet — Modus: {mode}")
     print(f"   Gerät:     {DEVICE_ID}")
     print(f"   Intervall: {SEND_INTERVAL_SECONDS}s")
     print("─" * 50)
 
-    if CONNECTION_STRING == "HIER_DEINE_CONNECTION_STRING_EINFÜGEN":
+
+def _print_reading(payload: dict, reading):
+    print(
+        f"✅ [{payload['timestamp'][11:19]}] "
+        f"Temp: {reading.temperature:6.2f}°C | "
+        f"Feuchte: {reading.humidity:5.1f}% | "
+        f"Druck: {reading.pressure:7.2f} hPa"
+    )
+
+
+def _send_loop(sensor, client):
+    """Hauptschleife: liest Sensor und sendet Nachrichten bis KeyboardInterrupt."""
+    try:
+        while True:
+            reading = sensor.read()
+            payload = _build_payload(reading)
+            client.send_message(_build_message(payload))
+            _print_reading(payload, reading)
+            time.sleep(SEND_INTERVAL_SECONDS)
+    except KeyboardInterrupt:
+        print("\n\n⏹  Gestoppt.")
+    finally:
+        sensor.close()
+        client.disconnect()
+
+
+# ──────────────────────────────────────────────
+# Hauptprogramm
+# ──────────────────────────────────────────────
+def main():
+    _print_startup_info()
+
+    if CONNECTION_STRING == _PLACEHOLDER_CONNECTION_STRING:
         print("❌ Bitte CONNECTION_STRING eintragen!")
         print("   Azure Portal → IoT Hub → Geräte → sensor-01")
         print("   → Primäre Verbindungszeichenfolge kopieren")
@@ -59,39 +109,7 @@ def main():
 
     sensor = create_sensor()
     client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
-
-    try:
-        while True:
-            reading = sensor.read()
-
-            payload = {
-                "deviceId": DEVICE_ID,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "temperature": reading.temperature,
-                "humidity": reading.humidity,
-                "pressure": reading.pressure,
-            }
-
-            message = Message(json.dumps(payload))
-            message.content_type = "application/json"
-            message.content_encoding = "utf-8"
-
-            client.send_message(message)
-
-            print(
-                f"✅ [{payload['timestamp'][11:19]}] "
-                f"Temp: {reading.temperature:6.2f}°C | "
-                f"Feuchte: {reading.humidity:5.1f}% | "
-                f"Druck: {reading.pressure:7.2f} hPa"
-            )
-
-            time.sleep(SEND_INTERVAL_SECONDS)
-
-    except KeyboardInterrupt:
-        print("\n\n⏹  Gestoppt.")
-    finally:
-        sensor.close()
-        client.disconnect()
+    _send_loop(sensor, client)
 
 
 if __name__ == "__main__":
