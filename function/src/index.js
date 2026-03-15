@@ -1,25 +1,35 @@
 const { app, output, input } = require("@azure/functions");
 
+// ── Konfiguration ────────────────────────────────────────────────────────────
+const COSMOS_DB_NAME = "iotdb";
+const COSMOS_CONTAINER = "measurements";
+const COSMOS_CONNECTION_SETTING = "COSMOS_DB_CONNECTION";
+const IOT_HUB_CONNECTION_SETTING = "IOT_HUB_CONNECTION";
+const EVENT_HUB_NAME = "iothub-ehub-iot-hub-ma-57404860-566d179e2c";
+const CONSUMER_GROUP = "$Default";
+const MEASUREMENTS_QUERY = "SELECT TOP 100 * FROM c ORDER BY c.timestamp DESC";
+// ─────────────────────────────────────────────────────────────────────────────
+
 const cosmosOutput = output.cosmosDB({
-  databaseName: "iotdb",
-  containerName: "measurements",
-  connection: "COSMOS_DB_CONNECTION",
+  databaseName: COSMOS_DB_NAME,
+  containerName: COSMOS_CONTAINER,
+  connection: COSMOS_CONNECTION_SETTING,
   createIfNotExists: true,
   partitionKey: "/deviceId",
 });
 
 const cosmosInput = input.cosmosDB({
-  databaseName: "iotdb",
-  containerName: "measurements",
-  connection: "COSMOS_DB_CONNECTION",
-  sqlQuery: "SELECT TOP 100 * FROM c ORDER BY c.timestamp DESC",
+  databaseName: COSMOS_DB_NAME,
+  containerName: COSMOS_CONTAINER,
+  connection: COSMOS_CONNECTION_SETTING,
+  sqlQuery: MEASUREMENTS_QUERY,
 });
 
 // IoT Hub Trigger → Cosmos DB
 app.eventHub("IoTHubTrigger", {
-  connection: "IOT_HUB_CONNECTION",
-  eventHubName: "iothub-ehub-iot-hub-ma-57404860-566d179e2c",
-  consumerGroup: "$Default",
+  connection: IOT_HUB_CONNECTION_SETTING,
+  eventHubName: EVENT_HUB_NAME,
+  consumerGroup: CONSUMER_GROUP,
   cardinality: "one",
   extraOutputs: [cosmosOutput],
   handler: async (event, context) => {
